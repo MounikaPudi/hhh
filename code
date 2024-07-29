@@ -1,0 +1,221 @@
+import React, { useState, useEffect, useCallback } from "react";
+import axios from "axios";
+import "./HomePosts.css";
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+ 
+const HomePosts = ({ resumeSaved }) => {
+  const [currentCandidate, setCurrentCandidate] = useState([]);
+  const [candidates, setCandidates] = useState([]);
+  const [interviewers, setInterviewers] = useState([]);
+  const [showInterviewers, setShowInterviewers] = useState(false);
+  const [editingCandidate, setEditingCandidate] = useState({});
+  const token = localStorage.getItem("token");
+ 
+  const fetchData = useCallback(async () => {
+    try {
+      const response = await axios.get("http://localhost:8081/profiles", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setCandidates(response.data);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    }
+  }, [token]);
+ 
+  useEffect(() => {
+    fetchData();
+  }, [fetchData, resumeSaved]);
+ 
+  const handleDelete = async (id) => {
+    try {
+      if (window.confirm("Are you sure you want to delete this candidate?")) {
+        await axios.delete(`http://localhost:8081/deleteProfile/${id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        fetchData();
+        toast.success("Candidate deleted successfully!");
+      }
+    } catch (error) {
+      console.error("Error deleting candidate:", error);
+      toast.error("Candidate could not be deleted");
+    }
+  };
+ 
+  const handleSchedule = async (candidate) => {
+    try {
+      if (window.confirm("Are you sure you want to schedule this candidate?")) {
+        const response = await axios.get("http://localhost:8081/interviewers", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        setCurrentCandidate(candidate)
+        setInterviewers(response.data);
+        setShowInterviewers(true); // Show the interviewers list
+        // toast.success("Candidate Scheduled successfully!");
+      }
+    } catch (error) {
+      console.error("Error getting interviewers list:", error);
+      // toast.error("Candidate could not be scheduled");
+    }
+  };
+ const handleScheduleCandidate = async (candidate, interviewer) => {
+   try {
+     
+      if (window.confirm(`Are you sure you want to schedule ${candidate.name} with ${interviewer.name}?`)) {
+        await axios.post(
+          "http://localhost:8081/saveInterview",
+          {interviewer: interviewer, profile: candidate},
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        toast.success("Candidate scheduled successfully!");
+      }
+    } catch (error) {
+      console.error("Error scheduling candidate:", error);
+      toast.error("Candidate could not be scheduled",error);
+    }
+  };
+ 
+  const handleChange = (e, candidate) => {
+    const { name, value } = e.target;
+    setCandidates((prevCandidates) =>
+      prevCandidates.map((previous) =>
+        previous.id === candidate.id ? { ...previous, [name]: value } : previous
+      )
+    );
+    setEditingCandidate({ ...editingCandidate, [candidate.id]: true });
+  };
+ 
+  const handleSubmit = async (e, candidate) => {
+    e.preventDefault();
+    try {
+      await axios.put(
+        `http://localhost:8081/updateProfile/${candidate.id}`,
+        candidate,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      setEditingCandidate({ ...editingCandidate, [candidate.id]: false });
+      fetchData();
+      toast.success("Availability changed successfully!");
+    } catch (error) {
+      console.error("Error updating candidate:", error);
+      toast.error("Availability could not be changed");
+    }
+  };
+ 
+ 
+  const handleCancel = () => {
+    setShowInterviewers(false);
+ 
+  }
+  return (
+    <div>
+      <div className="space-y-4">
+        {candidates.length === 0 ? (
+          <p className="text-lg text-gray-600">No resumes uploaded yet.</p>
+        ) : (
+          <div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Sq. No.</th>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Skills</th>
+                  <th>Designation</th>
+                  <th>Availability</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {candidates.reverse().map((candidate, index) => (
+                  <tr key={candidate.id}>
+                    <td>{index + 1}</td>
+                    <td>{candidate.name}</td>
+                    <td>{candidate.contact.email}</td>
+                    <td>{candidate.contact.phone}</td>
+                    <td>
+                      {candidate.skills.primary}{" "}
+                      {candidate.skills.secondary.map((skill) => ", " + skill)}
+                    </td>
+                    <td>{candidate.title}</td>
+                    <td>
+                      <select
+                        value={candidate.availability}
+                        name="availability"
+                        onChange={(e) => handleChange(e, candidate)}
+                      >
+                        <option value="Yes">Yes</option>
+                        <option value="No">No</option>
+                      </select>
+                    </td>
+                   
+                    <td>
+                      {editingCandidate[candidate.id] && (
+                        <button
+                          className="bg-green-500 hover:bg-green-700"
+                          onClick={(e) => handleSubmit(e, candidate)}
+                        >
+                          Submit
+                        </button>
+                      )}
+                      <button
+                        className="hover:bg-red-700 bg-red-500"
+                        onClick={() => handleDelete(candidate.id)}
+                      >
+                        Delete
+                      </button>
+                     
+                      <button
+                        className="hover:bg-green-700 bg-green-500"
+                        onClick={() => handleSchedule(candidate)}
+                      >
+                        Interviewers list
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {showInterviewers && (
+          <div className="interviewers-list">
+            <h3>Interviewers:</h3>
+            <ol>
+              {interviewers.map((interviewer) => (
+                <ul>
+                <li key={interviewer.id}>{interviewer.name}&nbsp;&nbsp;&nbsp;{interviewer.email}&nbsp;&nbsp;&nbsp;&nbsp;
+               
+                <button
+                        className="hover:bg-green-700 bg-green-500"
+                        onClick={() => handleScheduleCandidate(currentCandidate,interviewer)}
+                      >
+                        Schedule
+                      </button></li>
+                </ul>
+              ))}
+            </ol>
+          </div>
+        )}
+        <button onClick={()=>handleCancel()}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+ 
+export default HomePosts;
